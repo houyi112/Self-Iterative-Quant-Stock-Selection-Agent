@@ -1,5 +1,6 @@
 # 本地配置（含 API Key）
 settings.local.json
+.env
 
 # IDE
 .idea/
@@ -15,6 +16,11 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Runtime
+cache/
+output/
+state/
 
 # Node
 node_modules/
