@@ -14,7 +14,7 @@
 - `Agent` 启动子 Agent 执行任务
 
 ### 文件读写（安全路径）
-- `Write` / `Edit` 记忆文件：`/Users/bytedance/.claude/projects/-Users-bytedance-claude-code/memory/`
+- `Write` / `Edit` 记忆文件：当前项目的 `.claude/memory/`
 - `Write` / `Edit` 当前项目下 `.md`、`.json`、`.txt` 文件
 
 ---
