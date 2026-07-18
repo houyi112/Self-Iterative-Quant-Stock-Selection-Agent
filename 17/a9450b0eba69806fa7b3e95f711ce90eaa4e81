@@ -1,0 +1,61 @@
+.env.example
+  s_b8e6d0077362f5::t_39a3bac75e5ca4 1-15
+.gitignore
+  s_b8e6d0077362f5::t_05243ca9839aee 3,20-24
+CLAUDE.md
+  s_b8e6d0077362f5::t_b983cd60bf04d5 3-30
+config.py
+  s_b8e6d0077362f5::t_d6cd84c755b120 1-441
+data/fetcher.py
+  s_b8e6d0077362f5::t_d6fce2deed0401 1-153
+data/indicators.py
+  s_b8e6d0077362f5::t_e5adb2863544bf 1-501
+data/store.py
+  s_b8e6d0077362f5::t_24c1fedbbc814e 1-55
+data/universe.py
+  s_b8e6d0077362f5::t_3d483aac685d5e 1-192
+engine/risk_scorer.py
+  s_b8e6d0077362f5::t_3079945327b803 1-344
+engine/screener.py
+  s_b8e6d0077362f5::t_fd3df8bc49c439 1-286
+iching/hexagram.py
+  s_b8e6d0077362f5::t_2591429f4a68bd 1-218
+iching/iching_agent.py
+  s_b8e6d0077362f5::t_f9e3c66c97dfaf 1-66
+llm/client.py
+  s_b8e6d0077362f5::t_f33888024fbe86 1-66
+llm/prompts.py
+  s_b8e6d0077362f5::t_b8e843c052ccd8 1-255
+main.py
+  s_b8e6d0077362f5::t_afa21874f1ef42 1-422
+reports/report1_sectors.py
+  s_b8e6d0077362f5::t_b8a61216fe2047 1-202
+reports/report2_picks.py
+  s_b8e6d0077362f5::t_dc30a085025939 1-126
+reports/report3_short.py
+  s_b8e6d0077362f5::t_f4e2ea9328318d 1-96
+reports/report4_review.py
+  s_b8e6d0077362f5::t_aeca862b6c8ee8 1-193
+reports/writer.py
+  s_b8e6d0077362f5::t_5b2d7f0796def2 1-419
+requirements.txt
+  s_b8e6d0077362f5::t_d0a64ef90736bf 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "17a9450b0eba69806fa7b3e95f711ce90eaa4e81",
+  "prompts": {},
+  "sessions": {
+    "s_b8e6d0077362f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15d2a589-89cb-4bd2-a0b7-54c2142f3702",
+        "model": "unknown"
+      },
+      "human_author": "hyx <hyx@stock-analysis.local>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
