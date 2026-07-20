@@ -1,0 +1,61 @@
+config.py
+  s_56dba05e8ae400::t_41cd6d5391c7c1 9-20,87,107,112,277,287,448-475
+data/fallback_caps.json
+  s_56dba05e8ae400::t_99752046017fc3 1-364
+data/fetcher.py
+  s_56dba05e8ae400::t_4a98c39d8dc931 142-143,148-149,151-162
+data/index_to_sector.json
+  s_56dba05e8ae400::t_9dae5d84cfe124 1-21
+data/indicators.py
+  s_56dba05e8ae400::t_77db91db0e3e08 285-350,378-382,430,433-436,447-448,466-500,504-509,513,520-521,524,526,528-529,545-551,558-568,583-584,639-693
+data/sector_stocks.json
+  s_56dba05e8ae400::t_0c88c574ace4d4 1-426
+data/stock_names.json
+  s_56dba05e8ae400::t_35b9f9051ac230 1-365
+engine/risk_scorer.py
+  s_56dba05e8ae400::t_7731338c3aa82d 12,69,77,85-91,100,118-120,138-139,143-144,149-151,163,246,253,258,261-262
+engine/screener.py
+  s_56dba05e8ae400::t_e67291efe14225 21,37-49,196-197,200-201,213,217-222,224,267,285,298-300
+iching/hexagram.py
+  s_56dba05e8ae400::t_d03a34e69f9bfc 107-108,135,137,139-140,144-149
+iching/iching_agent.py
+  s_56dba05e8ae400::t_a18fcd9ad8591a 1-5,10-13,16-18,20-21,31,55-89,91-97,99-124
+llm/client.py
+  s_56dba05e8ae400::t_50f75d1893a858 3-9,32,45-56,58,62-84,96-99,103,105
+reports/report3_short.py
+  s_56dba05e8ae400::t_78e346597723d3 10,43-44
+README.md
+  s_56dba05e8ae400::t_a5553eaa4c6f6a 1,3,5,8-14,17,19-25,27,29-72,74,76-82,84,86-95,97,99,102-106
+data/backtest.py
+  s_56dba05e8ae400::t_1256918e6c232d 1-242
+llm/prompts.py
+  s_56dba05e8ae400::t_df66d41e4c3190 30-34,87-90,126-129,134-138,168,170-173,175-178,180-183,185,187-201,204-206,211,213-215,217,266-327
+main.py
+  s_56dba05e8ae400::t_843e3f0b1bcffd 25,34-38,54-66,68-73,94,129-135,164-167,169-170,176-177,184,186,188,192-194,197-210,212-213,215-217,222-226,281-298,300-306,326,338,344,391,408
+reports/report1_sectors.py
+  s_56dba05e8ae400::t_c670a488fbdd11 10,23,34,40,47-49,65-67,86-110,158
+reports/report2_picks.py
+  s_56dba05e8ae400::t_63fcf128ff9728 9,55-56,82-83
+reports/report4_review.py
+  s_56dba05e8ae400::t_0a4347e202cb57 1-6,9-12,16,30-32,34-35,37-38,40-42,46,52-54,56-57,61-112,114-143,145-151,154-199,204-237,239-258
+reports/writer.py
+  s_56dba05e8ae400::t_b8dfb3fee2cfdf 293,295-299,363-425
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e21946c7dd7e32aa9b50e0d939cff45342f567c1",
+  "prompts": {},
+  "sessions": {
+    "s_56dba05e8ae400": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a350dc75-285b-4953-99e9-be1d3b854571",
+        "model": "unknown"
+      },
+      "human_author": "hyx <hyx@stock-analysis.local>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
