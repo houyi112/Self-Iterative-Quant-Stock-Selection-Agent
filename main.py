@@ -51,6 +51,14 @@ def is_trading_day(d: date) -> bool:
     return True
 
 
+def next_trading_day(d: date) -> date:
+    """返回下一个 A 股交易日。"""
+    nxt = d + __import__("datetime").timedelta(days=1)
+    while not is_trading_day(nxt):
+        nxt = nxt + __import__("datetime").timedelta(days=1)
+    return nxt
+
+
 def _save_last_ganzhi(d: date, data: dict) -> None:
     """保存今日干支预测，供下次复盘对比。"""
     import json as _json
@@ -190,9 +198,10 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_r1 = executor.submit(generate_report1, index_data, market_context, llm_enabled, precomputed_indicators)
+            next_td = next_trading_day(run_date)
             future_ganzhi = executor.submit(
                 __import__("iching.iching_agent", fromlist=["generate_ganzhi_report"]).generate_ganzhi_report,
-                run_date, llm_enabled,
+                next_td, llm_enabled,
             )
             try:
                 report1 = future_r1.result()

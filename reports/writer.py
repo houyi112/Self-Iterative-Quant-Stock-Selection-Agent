@@ -368,13 +368,13 @@ def write_ganzhi(date_str: str, data: dict) -> str:
     path = d / "ganzhi_干支分析.md"
 
     lines = [
-        f"# 🌿 干支分析",
+        f"# 🌿 干支分析（预测下一个交易日）",
         f"",
-        f"**日期：** {date_str}",
+        f"**生成日期：** {date_str}",
         f"",
         f"---",
         f"",
-        f"## 今日干支",
+        f"## 预测日干支",
         f"",
         f"**{data.get('day_ganzhi', '')}**",
         f"",
