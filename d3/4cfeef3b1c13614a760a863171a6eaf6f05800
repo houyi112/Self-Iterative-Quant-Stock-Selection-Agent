@@ -1,0 +1,25 @@
+llm/prompts.py
+  s_56dba05e8ae400::t_e056a771b36e77 274-275
+main.py
+  s_56dba05e8ae400::t_0a7626edb619bc 54-61,201,204
+reports/writer.py
+  s_56dba05e8ae400::t_89ac5c54f5ac24 371,373,377
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d34cfeef3b1c13614a760a863171a6eaf6f05800",
+  "prompts": {},
+  "sessions": {
+    "s_56dba05e8ae400": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a350dc75-285b-4953-99e9-be1d3b854571",
+        "model": "unknown"
+      },
+      "human_author": "hyx <hyx@stock-analysis.local>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
