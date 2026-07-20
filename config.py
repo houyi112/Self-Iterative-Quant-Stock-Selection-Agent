@@ -6,6 +6,18 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parent
 load_dotenv(PROJECT_ROOT / ".env")
 
+
+def _load_json(filename: str, default: dict) -> dict:
+    """从 data/ 目录加载 JSON 配置文件，不存在则返回默认值。"""
+    import json
+    path = PROJECT_ROOT / "data" / filename
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+    return default
+
 # --- DeepSeek API ---
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
@@ -72,7 +84,7 @@ SECTOR_INDICES: dict[str, str] = {
 TRACKED_INDICES: dict[str, str] = {**MARKET_INDICES, **SECTOR_INDICES}
 
 # --- Index name → stock pool name（报告一的指数名映射到报告二的板块股票池）---
-INDEX_TO_SECTOR: dict[str, str] = {
+INDEX_TO_SECTOR: dict[str, str] = _load_json("index_to_sector.json", {
     "中证医疗": "医药",
     "中证消费": "消费",
     "中证计算机": "计算机",
@@ -92,12 +104,12 @@ INDEX_TO_SECTOR: dict[str, str] = {
     "中证建材": "建材",
     "中证游戏": "游戏",
     "中证旅游": "旅游",
-}
+})
 
 # ============================================================
 # 板块 → 成分股（19 个赛道，295 只股票去重）
 # ============================================================
-SECTOR_STOCKS: dict[str, list[str]] = {
+SECTOR_STOCKS: dict[str, list[str]] = _load_json("sector_stocks.json", {
     # ---- 医药（25 只） ----
     "医药": [
         "sh600276", "sz300760", "sh600196", "sz300015", "sh600436",
@@ -262,7 +274,7 @@ SECTOR_STOCKS: dict[str, list[str]] = {
         "sh600115", "sz000089", "sh601919", "sh600004", "sz002120",
         "sh600018", "sh601872",
     ],
-}
+})
 
 # --- 所有跟踪股票代码（去重） ---
 ALL_STOCK_CODES: list[str] = sorted(
@@ -272,7 +284,7 @@ ALL_STOCK_CODES: list[str] = sorted(
 # ============================================================
 # 股票代码 → 名称
 # ============================================================
-STOCK_NAMES: dict[str, str] = {
+STOCK_NAMES: dict[str, str] = _load_json("stock_names.json", {
     # 医药
     "sh600276": "恒瑞医药", "sz300760": "迈瑞医疗", "sh600196": "复星医药",
     "sz300015": "爱尔眼科", "sh600436": "片仔癀", "sz002007": "华兰生物",
@@ -433,6 +445,34 @@ STOCK_NAMES: dict[str, str] = {
     "sh601808": "中海油服", "sh600583": "海油工程", "sh600871": "石化油服",
     "sh600339": "中油工程", "sh600688": "上海石化", "sh600256": "广汇能源",
     "sh600777": "新潮能源", "sz002554": "惠博普", "sz000059": "华锦股份",
+})
+
+# ============================================================
+# 五行映射（板块/指数 → 五行元素，供量化+易学共振分析使用）
+# ============================================================
+SECTOR_ELEMENT: dict[str, str] = {
+    # 板块指数
+    "中证医疗": "木", "中证计算机": "火", "中证通信": "金", "中证消费": "水",
+    "中证银行": "金", "中证证券": "金", "有色金属": "土",
+    "中证军工": "金", "中证新能": "火", "中证传媒": "火",
+    "中证地产": "土", "中证煤炭": "土", "中证钢铁": "金",
+    "中证基建": "土", "中证油气": "水",
+    "中证环保": "木", "中证建材": "土", "中证游戏": "火", "中证旅游": "水",
+    # 股票池板块
+    "医药": "木", "计算机": "火", "通信": "金", "消费": "水", "金融": "金",
+    "新能源": "火", "半导体": "火", "军工": "金", "有色": "土",
+    "化工": "土", "汽车": "火", "电力": "水", "地产": "土",
+    "煤炭": "土", "钢铁": "金", "传媒": "火", "家电": "金",
+    "农业": "木", "机械": "金", "交通": "水", "油气": "水",
+    "游戏": "火", "环保": "木", "建材": "土", "纺织服装": "木", "旅游": "水",
+}
+
+ELEMENT_SECTORS: dict[str, str] = {
+    "金": "金融、有色金属、钢铁、通信、军工",
+    "木": "医药、农业、环保、消费",
+    "水": "食品饮料、白酒、公用事业、电力",
+    "火": "科技、计算机、半导体、新能源、传媒、游戏",
+    "土": "房地产、基建、煤炭、化工",
 }
 
 # Ensure output/cache/state dirs exist

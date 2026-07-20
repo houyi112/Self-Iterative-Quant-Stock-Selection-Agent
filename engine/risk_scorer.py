@@ -7,24 +7,9 @@ F003/F004/F005/F007 的字段从 OHLCV + 指标数据硬编码计算，
 from __future__ import annotations
 import json
 import pandas as pd
-import numpy as np
 from pathlib import Path
 from config import STATE_DIR
-from data.indicators import compute_all
-
-
-def _last_val(ind, col: str, default=0.0):
-    """从 DataFrame 或 dict 中安全提取最后一个标量值。"""
-    if isinstance(ind, pd.DataFrame) and col in ind.columns:
-        val = ind[col].iloc[-1]
-        return default if pd.isna(val) else float(val)
-    if isinstance(ind, dict):
-        val = ind.get(col, [None])
-        if isinstance(val, list):
-            v = val[-1] if val else None
-            return default if v is None or (isinstance(v, float) and pd.isna(v)) else float(v)
-        return default if val is None else val
-    return default
+from data.indicators import compute_all, last_val
 
 
 def _last_n(ind, col: str, n: int = 3):
@@ -81,6 +66,7 @@ def score_sector(
     sector_name: str,
     sector_ohlcv: list[dict] | None,
     market_context: dict | None = None,
+    indicators: "pd.DataFrame | None" = None,
 ) -> dict:
     """对单个板块计算风险分。
 
@@ -88,7 +74,7 @@ def score_sector(
         sector_name: 板块名称
         sector_ohlcv: 板块指数的 OHLCV 数据
         market_context: 市场上下文，包含 board height, northbound 等外部数据。
-                        None 或空 dict 时，可计算字段从指标数据硬编码推断。
+        indicators: 预计算的指标 DataFrame（可选，避免重复 compute_all）
 
     Returns:
         {factor_id: score, ..., "total": sum, "level": "低风险"}
@@ -96,10 +82,13 @@ def score_sector(
     rules = _load_rules()
     market_context = market_context or {}
 
-    # 计算板块指标
-    indicators = pd.DataFrame()
-    if sector_ohlcv and len(sector_ohlcv) > 20:
-        indicators = compute_all(sector_ohlcv)
+    # 计算板块指标（优先使用预计算结果）
+    if indicators is not None:
+        ind = indicators
+    elif sector_ohlcv and len(sector_ohlcv) > 20:
+        ind = compute_all(sector_ohlcv)
+    else:
+        ind = pd.DataFrame()
 
     # ================================================================
     # 硬编码计算 F003/F004/F005/F007 字段（不依赖外部 API）
@@ -108,7 +97,7 @@ def score_sector(
     # --- F003: 逆市补跌 ---
     # 需大盘数据：从 market_context 传入，否则默认未触发
     sh_change = market_context.get("_market_changes", {}).get("上证指数", 0.0)
-    sector_change = _last_val(indicators, "daily_return", 0.0)
+    sector_change = last_val(ind, "daily_return", 0.0)
     counter_market_rise = bool(sector_change > 0 and sh_change < 0)
 
     # 连续逆市上涨天数（从 OHLCV 计算）
@@ -126,9 +115,9 @@ def score_sector(
     counter_market_no_catalyst = bool(counter_market_rise and sector_change > 2)
 
     # --- F004: 量价背离 ---
-    vr = _last_val(indicators, "volume_ratio", 1.0)
-    vol_vals = _last_n(indicators, "volume", 5)
-    close_vals = indicators["close"].tail(3).tolist() if isinstance(indicators, pd.DataFrame) and "close" in indicators.columns else []
+    vr = last_val(ind, "volume_ratio", 1.0)
+    vol_vals = _last_n(ind, "volume", 5)
+    close_vals = ind["close"].tail(3).tolist() if isinstance(ind, pd.DataFrame) and "close" in ind.columns else []
 
     # 量递减（近2日量下降但价格上涨）
     volume_declining = False
@@ -146,20 +135,20 @@ def score_sector(
     shrinking_acceleration = bool(vr < 0.7 and sector_change > prev_change and sector_change > 0)
 
     # --- F007: 技术顶背离 ---
-    is_20d_high = bool(_last_val(indicators, "is_20day_high", 0.0))
-    macd_dif_val = _last_val(indicators, "macd_dif", 0.0)
+    is_20d_high = bool(last_val(ind, "is_20day_high", 0.0))
+    macd_dif_val = last_val(ind, "macd_dif", 0.0)
 
     # 价格创20日新高但 MACD DIF 未同步创新高
     price_high_dif_not = False
-    if is_20d_high and isinstance(indicators, pd.DataFrame) and "macd_dif" in indicators.columns:
-        dif_20_max = indicators["macd_dif"].tail(20).max()
+    if is_20d_high and isinstance(ind, pd.DataFrame) and "macd_dif" in ind.columns:
+        dif_20_max = ind["macd_dif"].tail(20).max()
         price_high_dif_not = bool(macd_dif_val < dif_20_max * 0.9)
 
     # 价格创20日新高但成交量未同步放大
     price_high_vol_not = False
-    if is_20d_high and isinstance(indicators, pd.DataFrame) and "volume" in indicators.columns:
-        vol_20_max = indicators["volume"].tail(20).max()
-        cur_vol = indicators["volume"].iloc[-1]
+    if is_20d_high and isinstance(ind, pd.DataFrame) and "volume" in ind.columns:
+        vol_20_max = ind["volume"].tail(20).max()
+        cur_vol = ind["volume"].iloc[-1]
         price_high_vol_not = bool(cur_vol < vol_20_max * 0.7)
 
     # 双顶背离
@@ -171,7 +160,7 @@ def score_sector(
 
     fields = {
         # F001: 从指标直接读取
-        "consecutive_up_days": int(_last_val(indicators, "consecutive_up_days", 0)),
+        "consecutive_up_days": int(last_val(ind, "consecutive_up_days", 0)),
         "macd_dif": macd_dif_val,
         "daily_return": sector_change,
         "volume_ratio": vr,
@@ -254,19 +243,23 @@ def score_sector(
 def score_all_sectors(
     sector_data: dict[str, list[dict] | None],
     market_context: dict | None = None,
+    precomputed_indicators: dict[str, "pd.DataFrame"] | None = None,
 ) -> dict[str, dict]:
     """对所有板块批量评分。
 
     Args:
         sector_data: {sector_name: ohlcv_list}
         market_context: 市场上下文
+        precomputed_indicators: {sector_name: indicators_df} 预计算结果
 
     Returns:
         {sector_name: scoring_dict}
     """
+    precomputed = precomputed_indicators or {}
     results = {}
     for name, ohlcv in sector_data.items():
-        results[name] = score_sector(name, ohlcv, market_context)
+        results[name] = score_sector(name, ohlcv, market_context,
+                                     indicators=precomputed.get(name))
     return results
 
 

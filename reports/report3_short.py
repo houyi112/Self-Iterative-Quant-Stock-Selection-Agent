@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 from llm.client import chat_json
 from llm.prompts import REPORT3_SYSTEM, REPORT3_USER_TEMPLATE
+from data.indicators import format_summary_for_llm
 
 
 def generate_report3(
@@ -33,41 +34,15 @@ def generate_report3(
     # --- 构建隔离输入（传全量技术指标，不传看多信息） ---
     stock_list_lines = []
     for p in picks:
-        summary = p.get("summary", {})
-        trend = summary.get("trend", {})
-        mom = summary.get("momentum", {})
-        vol = summary.get("volume", {})
-        vola = summary.get("volatility", {})
-        sig = summary.get("signal", {})
-
-        # 基础信息
         parts = [
             f"- {p.get('name', p['code'])}（{p['code']}）",
             f"现价: ¥{p['close']:.2f}",
             f"涨停价: ¥{p['limit_up_price']:.2f}",
             f"市值: {p['market_cap']}亿",
             f"{'20cm' if p.get('is_20cm') else '10cm'}",
+            format_summary_for_llm(p.get("summary", {})),
+            f"日涨跌: {p['daily_return']:+.2f}% 连涨: {p['consecutive_up']}日",
         ]
-        # 趋势
-        parts.append(f"MA: {p['ma5']:.2f}/{p['ma10']:.2f}/{p['ma20']:.2f}({trend.get('ma_alignment', '?')})")
-        parts.append(f"MACD: {trend.get('macd_signal', '?')} DIF={trend.get('macd_dif', 0):.3f} DEA={trend.get('macd_dea', 0):.3f}")
-        parts.append(f"ADX: {trend.get('adx', 0):.0f}({trend.get('adx_regime', '?')}) PSAR: {trend.get('psar_signal', '?')}")
-        parts.append(f"Aroon: ↑{trend.get('aroon_up', 0):.0f} ↓{trend.get('aroon_down', 0):.0f}")
-        # 动量
-        parts.append(f"RSI: 6={mom.get('rsi_6', 0):.0f}/14={mom.get('rsi_14', 0):.0f}({mom.get('rsi_regime', '?')})")
-        parts.append(f"KDJ: K{mom.get('stoch_k', 0):.0f}/D{mom.get('stoch_d', 0):.0f}/J{mom.get('stoch_j', 0):.0f}({mom.get('stoch_signal', '?')})")
-        parts.append(f"CCI: {mom.get('cci_14', 0):.0f} MFI: {mom.get('mfi_14', 0):.0f} WillR: {mom.get('willr_14', 0):.0f} UO: {mom.get('uo', 0):.0f}")
-        # 成交量
-        parts.append(f"量比: {vol.get('vol_ratio', 1):.2f} OBV趋势: {vol.get('obv_trend', '?')} ForceIdx: {vol.get('force_idx', 0):.0f}")
-        # 波动率
-        parts.append(f"BOLL: 上{vola.get('bb_upper', 0):.2f}/下{vola.get('bb_lower', 0):.2f} pos={vola.get('bb_position', 0.5):.2f}{' 收窄' if vola.get('bb_squeeze') else ''}")
-        parts.append(f"ATR: {vola.get('atr_14', 0):.2f}({vola.get('atr_pct', 0):.1f}%) 历史波动率: {vola.get('hist_vol_20', 0):.2f}")
-        # 信号
-        parts.append(f"趋势偏向: {sig.get('trend_bias', '?')} 动量偏向: {sig.get('momentum_bias', '?')}")
-        parts.append(f"量质: {sig.get('volume_quality', '?')} 风险: {sig.get('risk_warning', '?')}")
-        # 日涨跌
-        parts.append(f"日涨跌: {p['daily_return']:+.2f}% 连涨: {p['consecutive_up']}日")
-
         stock_list_lines.append(" | ".join(parts))
 
     result = {"stocks": [], "systemic_risk": ""}

@@ -290,70 +290,13 @@ def write_report3(date_str: str, data: dict) -> str:
 # ============================================================
 
 def write_report4(date_str: str, data: dict) -> str:
-    """输出报告四：每日复盘。"""
+    """输出报告四：复盘摘要（硬编码统计 + LLM 洞察）。"""
     d = _ensure_dir(date_str)
-    path = d / "report4_复盘.md"
-
-    lines = [
-        f"# 📝 报告四：每日复盘 + 规则提取",
-        f"",
-        f"**日期：** {date_str}",
-        f"",
-        f"---",
-        f"",
-        f"## 偏差分析",
-        f"",
-        f"{data.get('deviation_analysis', '')}",
-        f"",
-        f"---",
-        f"",
-        f"## 根因分析",
-        f"",
-        f"{data.get('root_cause', '')}",
-        f"",
-        f"---",
-        f"",
-        f"## 规则变更",
-        f"",
-    ]
-
-    for change in data.get("rule_changes", []):
-        lines.append(f"- {change}")
-
-    new_rules = data.get("new_rules", [])
-    if new_rules:
-        lines.extend([
-            f"",
-            f"### 新增规则",
-            f"",
-        ])
-        for r in new_rules:
-            lines.append(f"- **IF** {r.get('if', '')} **THEN** {r.get('then', '')} // {r.get('rationale', '')}")
-
-    adjustments = data.get("rule_adjustments", [])
-    if adjustments:
-        lines.extend([
-            f"",
-            f"### 因子调整",
-            f"",
-        ])
-        for a in adjustments:
-            lines.append(f"- {a.get('factor_id', '')}：{a.get('action', '')} — {a.get('reason', '')}")
-
-    narrative = data.get("narrative", "")
-    if narrative:
-        lines.extend([
-            f"",
-            f"---",
-            f"",
-            f"## 叙事复盘",
-            f"",
-            f"{narrative}",
-            f"",
-        ])
-
-    text = "\n".join(lines)
-    path.write_text(text, encoding="utf-8")
+    path = d / "report4_复盘摘要.md"
+    summary = data.get("summary", "")
+    if not summary:
+        summary = f"# 复盘摘要\n\n生成时间：{data.get('generated_at', '')}\n\n（暂无复盘数据）"
+    path.write_text(summary, encoding="utf-8")
     return str(path)
 
 
@@ -400,6 +343,69 @@ def write_iching(date_str: str, data: dict) -> str:
         f"| 五行 | 吉凶 | 板块 | 理由 |",
         f"|------|------|------|------|",
     ]
+
+    for row in data.get("five_element_table", []):
+        lines.append(f"| {row.get('element', '')} | {row.get('rating', '')} | {row.get('sectors', '')} | {row.get('reason', '')} |")
+
+    lines.extend([
+        f"",
+        f"---",
+        f"",
+        f"## 一言",
+        f"",
+        f"> {data.get('one_sentence', '')}",
+        f"",
+    ])
+
+    text = "\n".join(lines)
+    path.write_text(text, encoding="utf-8")
+    return str(path)
+
+
+def write_ganzhi(date_str: str, data: dict) -> str:
+    """输出干支分析报告。"""
+    d = _ensure_dir(date_str)
+    path = d / "ganzhi_干支分析.md"
+
+    lines = [
+        f"# 🌿 干支分析",
+        f"",
+        f"**日期：** {date_str}",
+        f"",
+        f"---",
+        f"",
+        f"## 今日干支",
+        f"",
+        f"**{data.get('day_ganzhi', '')}**",
+        f"",
+        f"- **体（日干）：** {data.get('ti', '')}",
+        f"- **用（月支）：** {data.get('yong', '')}",
+        f"- **体用关系：** {data.get('ti_yong_relation', '')}",
+        f"",
+    ]
+
+    key_rels = data.get("key_relations", [])
+    if key_rels:
+        lines.append("## 关键关系")
+        lines.append("")
+        for r in key_rels:
+            lines.append(f"- {r}")
+        lines.append("")
+
+    lines.extend([
+        f"---",
+        f"",
+        f"## 大盘判断",
+        f"",
+        f"{data.get('market_judgment', '')}",
+        f"",
+        f"---",
+        f"",
+        f"## 五行板块吉凶",
+        f"",
+        f"| 五行 | 吉凶 | 板块 | 理由 |",
+        f"|------|------|------|------|",
+    ])
 
     for row in data.get("five_element_table", []):
         lines.append(f"| {row.get('element', '')} | {row.get('rating', '')} | {row.get('sectors', '')} | {row.get('reason', '')} |")

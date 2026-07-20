@@ -5,7 +5,6 @@ import re
 import time
 import urllib.request
 import urllib.error
-from datetime import date, timedelta
 from config import SINA_API_BASE
 from data.store import load, merge_incremental, last_date
 
@@ -140,14 +139,24 @@ def incremental_update(symbol: str) -> list[dict]:
     return merged
 
 
-def batch_update(symbols: list[str]) -> dict[str, list[dict]]:
-    """批量增量更新多个标的。
+def batch_update(symbols: list[str], max_workers: int = 6) -> dict[str, list[dict]]:
+    """批量增量更新多个标的（并行拉取）。
 
     Returns:
         {symbol: ohlcv_list}
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     result = {}
-    for sym in symbols:
-        print(f"  [fetcher] Updating {sym} ...")
-        result[sym] = incremental_update(sym)
-    return result
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_sym = {executor.submit(incremental_update, sym): sym for sym in symbols}
+        for future in as_completed(future_to_sym):
+            sym = future_to_sym[future]
+            try:
+                result[sym] = future.result()
+            except Exception as e:
+                print(f"  [fetcher] {sym} 拉取失败: {e}")
+                result[sym] = []
+
+    # 保持原始顺序输出
+    return {sym: result.get(sym, []) for sym in symbols}

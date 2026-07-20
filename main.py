@@ -22,7 +22,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from config import (
     TRACKED_INDICES, SECTOR_STOCKS, ALL_STOCK_CODES,
-    ENABLE_ICHING, STATE_DIR,
+    ENABLE_ICHING, STATE_DIR, SECTOR_ELEMENT,
 )
 from data.fetcher import batch_update
 from data.store import load as load_cache
@@ -31,8 +31,11 @@ from engine.risk_scorer import score_all_sectors
 from reports.report1_sectors import generate_report1
 from reports.report2_picks import generate_report2
 from reports.report3_short import generate_report3
-from reports.report4_review import generate_report4, _load_review_log
-from reports.writer import write_report1, write_report2, write_report3, write_report4, write_iching
+from reports.report4_review import generate_report4
+from reports.writer import write_report1, write_report2, write_report3, write_report4, write_iching, write_ganzhi
+from data.backtest import (
+    load_yesterdays_prediction, append_daily, load_log, load_insights,
+)
 
 
 def is_trading_day(d: date) -> bool:
@@ -48,16 +51,26 @@ def is_trading_day(d: date) -> bool:
     return True
 
 
-def load_yesterdays_prediction() -> dict | None:
-    """加载最近一次报告一的预测数据（用于复盘）。"""
-    log = _load_review_log()
-    if not log:
+def _save_last_ganzhi(d: date, data: dict) -> None:
+    """保存今日干支预测，供下次复盘对比。"""
+    import json as _json
+    path = STATE_DIR / "last_ganzhi.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_json.dumps({"date": str(d), "ganzhi": data}, ensure_ascii=False), encoding="utf-8")
+
+
+def _load_yesterdays_ganzhi(run_date: date) -> dict | None:
+    """加载最近一次干支预测（不含今天）。"""
+    import json as _json
+    path = STATE_DIR / "last_ganzhi.json"
+    if not path.exists():
         return None
-    # 找最近一天的非空预测
-    for entry in reversed(log):
-        pred = entry.get("prediction")
-        if pred and pred.get("rankings"):
-            return pred
+    try:
+        data = _json.loads(path.read_text(encoding="utf-8"))
+        if data.get("date") != str(run_date):
+            return data.get("ganzhi")
+    except (json.JSONDecodeError, OSError):
+        pass
     return None
 
 
@@ -78,7 +91,7 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
     print(f"\n{'='*60}")
     print(f"  Stock Agent Pipeline — {date_str}")
     print(f"  LLM: {'启用' if llm_enabled else '关闭'}")
-    print(f"  易学: {'启用' if (llm_enabled and ENABLE_ICHING) else '关闭'}")
+    print(f"  干支: {'启用' if (llm_enabled and ENABLE_ICHING) else '关闭'}")
     print(f"{'='*60}\n")
 
     t0 = time.time()
@@ -113,6 +126,13 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
     # ============================================
     print("[2/6] 风险评分...")
 
+    # 预计算所有板块指标（后续步骤复用，避免重复 compute_all）
+    from data.indicators import compute_all as _compute_all
+    precomputed_indicators: dict[str, "pd.DataFrame"] = {}
+    for name, ohlcv in index_data.items():
+        if ohlcv and len(ohlcv) > 20:
+            precomputed_indicators[name] = _compute_all(ohlcv)
+
     # 加载昨日预测（供 F005 板块轮动检测 + Step 6 复盘使用）
     yesterdays_pred = load_yesterdays_prediction()
 
@@ -141,53 +161,69 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
         )
         today_top3 = [n for n, _ in today_ranked[:3]]
         market_context["top3_rotation"] = len(set(today_top3) & set(yesterdays_rankings)) == 0
-        # rotation_3day: 检查 review_log 中前两天的排行榜
-        review_log = _load_review_log()
-        if len(review_log) >= 3:
+        # rotation_3day: 检查 backtest.json 中前两天的排行榜
+        backtest_log = load_log()
+        daily = backtest_log.get("daily", [])
+        if len(daily) >= 3:
             prev3_top = []
-            for entry in review_log[-3:]:
-                pred = entry.get("prediction")
+            for entry in daily[-3:]:
+                pred = entry.get("todays_prediction")
                 if pred and pred.get("rankings"):
                     prev3_top.extend([r.get("name", "") for r in pred["rankings"][:3]])
             all_tops = set(today_top3 + prev3_top)
             market_context["rotation_3day"] = len(all_tops) >= 5  # 3天至少5个不同板块 = 高速轮动
 
-    risk_scores = score_all_sectors(index_data, market_context)
+    risk_scores = score_all_sectors(index_data, market_context,
+                                    precomputed_indicators=precomputed_indicators)
     for name, scores in sorted(risk_scores.items(), key=lambda x: x[1].get("total", 0), reverse=True):
         if scores.get("total", 0) > 0:
             print(f"  ⚠️ {name}: {scores['total']}分 [{scores['level']}]")
     print(f"  ✓ 风险评分完成\n")
 
     # ============================================
-    # Step 3: 报告一 + 易学（并行）
+    # Step 3: 报告一 + 干支分析（并行）
     # ============================================
-    print("[3/6] 生成报告一 + 易学...")
+    print("[3/6] 生成报告一 + 干支分析...")
 
-    iching_result = None
+    ganzhi_result = None
     if llm_enabled and ENABLE_ICHING:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=2) as executor:
-            future_r1 = executor.submit(generate_report1, index_data, market_context, llm_enabled)
-            future_iching = executor.submit(
-                __import__("iching.iching_agent", fromlist=["generate_iching_report"]).generate_iching_report,
+            future_r1 = executor.submit(generate_report1, index_data, market_context, llm_enabled, precomputed_indicators)
+            future_ganzhi = executor.submit(
+                __import__("iching.iching_agent", fromlist=["generate_ganzhi_report"]).generate_ganzhi_report,
                 run_date, llm_enabled,
             )
-            report1 = future_r1.result()
-            iching_result = future_iching.result()
-        print("  ↳ 报告一 + 易学 并行完成")
+            try:
+                report1 = future_r1.result()
+            except Exception as e:
+                print(f"  ✗ 报告一生成失败: {e}")
+                import traceback
+                traceback.print_exc()
+                # 报告一是核心，失败则降级为纯涨幅排序
+                report1 = generate_report1(index_data, market_context, llm_enabled=False, precomputed_indicators=precomputed_indicators)
+            try:
+                ganzhi_result = future_ganzhi.result()
+            except Exception as e:
+                print(f"  ✗ 干支分析失败: {e}")
+                ganzhi_result = None
+        print("  ↳ 报告一 + 干支分析 并行完成")
     else:
-        report1 = generate_report1(index_data, market_context, llm_enabled)
+        report1 = generate_report1(index_data, market_context, llm_enabled,
+                                  precomputed_indicators=precomputed_indicators)
 
-    # 易学共振对比
-    if iching_result:
-        report1["iching_comparison"] = _compare_iching(report1, iching_result)
+    # 量化+干支共振对比
+    if ganzhi_result:
+        report1["iching_comparison"] = _compare_iching(report1, ganzhi_result)
 
     report1_path = write_report1(date_str, report1)
     print(f"  ✓ 报告一 → {report1_path}")
 
-    if iching_result:
-        iching_path = write_iching(date_str, iching_result)
-        print(f"  ✓ 易学报告 → {iching_path}")
+    if ganzhi_result:
+        ganzhi_path = write_ganzhi(date_str, ganzhi_result)
+        print(f"  ✓ 干支分析 → {ganzhi_path}")
+        # 持久化干支预测（供下次复盘使用）
+        _save_last_ganzhi(run_date, ganzhi_result)
 
     print()
 
@@ -242,10 +278,32 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
                 "change": round((close - prev) / prev * 100, 2),
             }
 
-    report4 = generate_report4(yesterdays_pred, todays_actual, llm_enabled)
+    yesterdays_ganzhi = _load_yesterdays_ganzhi(run_date)
+    # 清洗 rankings：只保留复盘需要的字段
+    clean_rankings = []
+    for s in report1.get("rankings", []):
+        clean_rankings.append({
+            "name": s.get("name", ""),
+            "probability": s.get("probability", 0),
+            "daily_return": s.get("daily_return", 0),
+            "driver_logic": s.get("narrative", {}).get("driver_logic", ""),
+            "sustainability": s.get("narrative", {}).get("sustainability", ""),
+            "key_risk": s.get("narrative", {}).get("key_risk", ""),
+        })
+
+    todays_pred = {"rankings": clean_rankings}
+    report4 = generate_report4(
+        yesterdays_pred, todays_actual, llm_enabled, yesterdays_ganzhi,
+        todays_prediction=todays_pred,
+    )
     report4_path = write_report4(date_str, report4)
-    n_changes = len(report4.get("rule_changes", []))
-    print(f"  ✓ 报告四 → {report4_path} ({n_changes} 条规则变更)\n")
+    n_insights = len(report4.get("new_insights", []))
+    print(f"  ✓ 报告四 → {report4_path} ({n_insights} 条新洞察)")
+
+    # 统一日志：增量写入 backtest.json（替代旧 review_log + backtest_csv + ganzhi_log）
+    append_daily(date_str, yesterdays_pred, todays_pred, todays_actual,
+                 report4.get("deviation", {}), report4.get("ganzhi_deviation"))
+    print(f"  ✓ 回测日志 → state/backtest.json")
 
     # ============================================
     # 汇总
@@ -265,7 +323,7 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
         "leading_sectors": leading_sectors,
         "n_picks": n_picks,
         "n_removes": n_removes,
-        "n_rule_changes": n_changes,
+        "n_insights": n_insights,
     }
 
 
@@ -277,29 +335,13 @@ def _compare_iching(report1: dict, iching: dict) -> str:
     if not rankings or not element_table:
         return ""
 
-    # 构建 指数名/板块名 → 五行 的映射
-    sector_element = {
-        "中证医疗": "木", "中证计算机": "火", "中证通信": "金", "中证消费": "水",
-        "中证银行": "金", "中证证券": "金", "有色金属": "土",
-        "中证军工": "金", "中证新能": "火", "中证传媒": "火",
-        "中证地产": "土", "中证煤炭": "土", "中证钢铁": "金",
-        "中证基建": "土", "中证油气": "水",
-        "中证环保": "木", "中证建材": "土", "中证游戏": "火", "中证旅游": "水",
-        "医药": "木", "计算机": "火", "通信": "金", "消费": "水", "金融": "金",
-        "新能源": "火", "半导体": "火", "军工": "金", "有色": "土",
-        "化工": "土", "汽车": "火", "电力": "水", "地产": "土",
-        "煤炭": "土", "钢铁": "金", "传媒": "火", "家电": "金",
-        "农业": "木", "机械": "金", "交通": "水", "油气": "水",
-        "游戏": "火", "环保": "木", "建材": "土", "纺织服装": "木", "旅游": "水",
-    }
-
-    # 构建 五行 → 吉凶 的映射
+    # 五行 → 吉凶 的映射
     element_rating = {e.get("element", ""): e.get("rating", "") for e in element_table}
 
     lines = []
     for s in rankings[:5]:
         name = s.get("name", "")
-        el = sector_element.get(name, "")
+        el = SECTOR_ELEMENT.get(name, "")
         rating = element_rating.get(el, "—")
         prob = s.get("probability", 0)
 
@@ -346,7 +388,7 @@ def main():
         from apscheduler.schedulers.background import BackgroundScheduler
         from apscheduler.triggers.cron import CronTrigger
 
-        print("启动调度器 — 每个交易日 18:07")
+        print("启动调度器 — 每个交易日 18:00")
         scheduler = BackgroundScheduler()
 
         def scheduled_run():
@@ -363,7 +405,7 @@ def main():
 
         scheduler.add_job(
             scheduled_run,
-            CronTrigger(hour=18, minute=7, day_of_week="mon-fri"),
+            CronTrigger(hour=18, minute=0, day_of_week="mon-fri"),
             id="evening_pipeline",
             replace_existing=True,
         )

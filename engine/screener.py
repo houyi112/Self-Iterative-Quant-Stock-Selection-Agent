@@ -18,6 +18,7 @@ def _load_live_caps() -> None:
     global _live_caps, _live_caps_loaded
     if _live_caps_loaded:
         return
+    _live_caps_loaded = True  # 同一次管线执行中只尝试一次
     try:
         from data.universe import get_all_stocks
         df = get_all_stocks()
@@ -30,11 +31,22 @@ def _load_live_caps() -> None:
             print(f"  [screener] 加载 {len(_live_caps)} 只股票实时市值")
     except Exception as e:
         print(f"  [screener] AKShare 市值加载失败: {e}")
-    _live_caps_loaded = True
 
 
 # ---- 硬编码估算（兜底，单位：亿元） ----
-_FALLBACK_CAPS = {
+def _load_fallback_caps() -> dict:
+    """从 JSON 文件加载兜底市值，不存在则用硬编码默认值。"""
+    import json
+    from pathlib import Path
+    path = Path(__file__).resolve().parent.parent / "data" / "fallback_caps.json"
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+    return _HARDCODED_CAPS
+
+_HARDCODED_CAPS = {
     # 医药
     "sh600276": 2800, "sz300760": 4500, "sh600196": 800, "sz300015": 1600,
     "sh600436": 1400, "sz002007": 450, "sh600085": 550, "sz300347": 600,
@@ -181,9 +193,12 @@ _FALLBACK_CAPS = {
     "sz002126": 100, "sh600699": 150, "sz300428": 80, "sh600418": 300,
 }
 
+_FALLBACK_CAPS = None  # lazy-loaded via _load_fallback_caps()
+
 
 def _is_20cm(code: str) -> bool:
-    return code.startswith("sz300") or code.startswith("sz301")
+    """创业板(sz300/301) + 科创板(sh688) 均为 20cm 涨跌幅。"""
+    return code.startswith(("sz300", "sz301", "sh688"))
 
 
 def _limit_up_price(close: float, code: str) -> float:
@@ -195,12 +210,18 @@ def _limit_up_price(close: float, code: str) -> float:
 
 def get_market_cap(code: str) -> float | None:
     """获取流通市值（亿）：优先实时数据，兜底硬编码。"""
-    # 尝试实时数据
+    # 尝试实时数据（AKShare 裸代码 vs sh/sz 前缀代码两种 key 都试）
     _load_live_caps()
     if code in _live_caps:
         return _live_caps[code]
+    # AKShare 返回裸代码（无 sh/sz 前缀），也尝试匹配
+    clean = code
+    if clean.startswith("sh") or clean.startswith("sz"):
+        clean = clean[2:]
+    if clean in _live_caps:
+        return _live_caps[clean]
     # 兜底
-    return _FALLBACK_CAPS.get(code)
+    return _load_fallback_caps().get(code)
 
 
 def screen_candidates(
@@ -243,7 +264,7 @@ def screen_candidates(
 
         # 全量指标计算（交给 LLM 判断，不在此处打分）
         indicators = compute_all(ohlcv)
-        summary = compute_summary(ohlcv)
+        summary = compute_summary(ohlcv, indicators=indicators)
 
         if not summary or "error" in summary:
             continue
@@ -261,6 +282,7 @@ def screen_candidates(
         cons_up = int(_v("consecutive_up_days"))
 
         trend = summary.get("trend", {})
+        price = summary.get("price", {})
         mom = summary.get("momentum", {})
         vol = summary.get("volume", {})
         vr = vol.get("vol_ratio", 1.0)
@@ -273,9 +295,9 @@ def screen_candidates(
             "limit_up_price": _limit_up_price(close, code),
             "is_20cm": is_20cm,
             "market_cap": cap,
-            "ma5": round(trend.get("ma5", 0), 2),
-            "ma10": round(trend.get("ma10", 0), 2),
-            "ma20": round(trend.get("ma20", 0), 2),
+            "ma5": round(price.get("ma5", trend.get("ma5", 0)), 2),
+            "ma10": round(price.get("ma10", trend.get("ma10", 0)), 2),
+            "ma20": round(price.get("ma20", trend.get("ma20", 0)), 2),
             "volume_ratio": round(vr, 2),
             "rsi": round(rsi14, 1),
             "daily_return": round(daily_ret, 2),

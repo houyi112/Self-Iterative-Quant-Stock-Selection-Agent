@@ -104,14 +104,8 @@ _ELEMENT_RESTRICTS = {
     "金": "木", "木": "土", "土": "水", "水": "火", "火": "金",
 }
 
-# 五行 → 板块映射
-ELEMENT_SECTORS = {
-    "金": "金融、有色金属、钢铁",
-    "木": "医药、农业、环保",
-    "水": "食品饮料、白酒、公用事业",
-    "火": "科技、半导体、新能源、军工",
-    "土": "房地产、基建、煤炭、化工",
-}
+# 五行 → 板块映射（从 config 导入统一版本）
+from config import ELEMENT_SECTORS
 
 
 def calculate_hexagram(year: int = None, month: int = None, day: int = None) -> dict:
@@ -137,33 +131,21 @@ def calculate_hexagram(year: int = None, month: int = None, day: int = None) -> 
     # 本卦
     ben_gua_name, ben_gua_symbol = _get_gua_name(upper_num, lower_num)
 
-    # 变卦：动爻翻转对应位
     # 六爻排布（从下到上）：下卦[下,中,上] + 上卦[下,中,上] = 1爻..6爻
-    # 下卦: 下/中/上 对应 1/2/3爻；上卦: 下/中/上 对应 4/5/6爻
-    lines = _get_hexagram_lines(upper_num, lower_num)
-    # 翻转动爻
-    lines[moving_line - 1] = 1 - lines[moving_line - 1]
-    new_upper_num, new_lower_num = _lines_to_hexagram(lines)
-    bian_gua_name, bian_gua_symbol = _get_gua_name(new_upper_num, new_lower_num)
+    orig_lines = _get_hexagram_lines(upper_num, lower_num)
 
-    # 互卦：2-3-4爻为下卦，3-4-5爻为上卦
-    hu_lines = [
-        lines[1], lines[2], lines[3],  # 2,3,4爻 → 互卦下卦的下中上
-        lines[2], lines[3], lines[4],  # 3,4,5爻 → 互卦上卦的下中上 (unused for calc)
-    ]
-    # 互卦: upper from lines[2],lines[3],lines[4], lower from lines[1],lines[2],lines[3]
+    # 互卦：从本卦（翻转动爻前）的 2-3-4 爻为下卦、3-4-5 爻为上卦
     hu_upper_num, hu_lower_num = _lines_to_hexagram([
-        lines[1], lines[2], lines[3],  # 互卦下卦的三爻
-        lines[2], lines[3], lines[4],  # 互卦上卦的三爻 → 按_lines_to_hexagram解析
-    ])
-    # _lines_to_hexagram expects [lo_lo, lo_mid, lo_hi, up_lo, up_mid, up_hi]
-    # 互卦下卦来自原卦2-3-4爻: lines[1], lines[2], lines[3]
-    # 互卦上卦来自原卦3-4-5爻: lines[2], lines[3], lines[4]
-    hu_upper_num, hu_lower_num = _lines_to_hexagram([
-        lines[1], lines[2], lines[3],   # 互下卦: 原2,3,4爻
-        lines[2], lines[3], lines[4],   # 互上卦: 原3,4,5爻
+        orig_lines[1], orig_lines[2], orig_lines[3],  # 互下卦: 本卦2,3,4爻
+        orig_lines[2], orig_lines[3], orig_lines[4],  # 互上卦: 本卦3,4,5爻
     ])
     hu_gua_name, hu_gua_symbol = _get_gua_name(hu_upper_num, hu_lower_num)
+
+    # 变卦：翻转动爻
+    changed_lines = orig_lines.copy()
+    changed_lines[moving_line - 1] = 1 - changed_lines[moving_line - 1]
+    new_upper_num, new_lower_num = _lines_to_hexagram(changed_lines)
+    bian_gua_name, bian_gua_symbol = _get_gua_name(new_upper_num, new_lower_num)
 
     # 体用：动爻所在的卦为用卦，另一个为体卦
     if moving_line <= 3:
