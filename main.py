@@ -260,13 +260,19 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True,
     stock_data = batch_update(ALL_STOCK_CODES)
 
     # 检查：多少只股票没更新到今天
-    stale_count = 0
+    stale_codes = []
     for code in ALL_STOCK_CODES:
         data = stock_data.get(code, [])
         if not data or data[-1]["date"] < date_str:
-            stale_count += 1
-    if stale_count > 0:
-        print(f"  ⚠️  {stale_count}/{len(ALL_STOCK_CODES)} 只股票数据未更新到最新")
+            stale_codes.append(code)
+    if stale_codes:
+        print(f"  ⚠️  {len(stale_codes)}/{len(ALL_STOCK_CODES)} 只股票数据未更新到最新")
+        # 写入独立错误日志（追加，不覆盖）
+        err_log = OUTPUT_DIR / "data_errors.log"
+        err_log.parent.mkdir(parents=True, exist_ok=True)
+        lines = [f"{date_str} | {c} | 数据未更新" for c in stale_codes]
+        with open(err_log, "a") as f:
+            f.write("\n".join(lines) + "\n")
 
     report2 = generate_report2(leading_sectors, stock_data, llm_enabled, analyzer=analyzer)
     report2_path = write_report2(date_str, report2)
