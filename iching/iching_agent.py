@@ -98,12 +98,35 @@ def generate_ganzhi_report(d: date = None, llm_enabled: bool = True) -> dict:
     return result
 
 
+def _search_ganzhi(d: date) -> str:
+    """从万年历网站查询干支纪年，返回如 '丙午年 乙未月 丁酉日'。"""
+    import urllib.request
+    import re
+    url = f"https://my.8s8s.com/wannianli/{d.year}/{d.year}-{d.month}-{d.day}.html"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode("utf-8", errors="replace")
+            m = re.search(r"干支日期[：:]\s*(\S{2}年\s*\S{2}月\s*\S{2}日)", html)
+            if m:
+                return m.group(1)
+            # 备用匹配
+            m = re.search(r"(\S{2})年\s*(\S{2})月\s*(\S{2})日", html)
+            if m:
+                return f"{m.group(1)}年 {m.group(2)}月 {m.group(3)}日"
+    except Exception as e:
+        print(f"  [ganzhi] 干支查询失败: {e}")
+    return ""
+
+
 def _get_llm_ganzhi(d: date) -> dict:
-    """调 LLM 推算干支 + 五行分析。"""
+    """调 LLM 推算干支 + 五行分析（先查询万年历确保干支正确）。"""
+    ganzhi_lookup = _search_ganzhi(d)
     prompt = GANZHI_USER_TEMPLATE.format(
         year=d.year,
         month=d.month,
         day=d.day,
+        ganzhi_lookup=ganzhi_lookup or "（查询失败，请根据日期自行确认干支）",
     )
     return chat_json(GANZHI_SYSTEM, prompt)
 
