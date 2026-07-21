@@ -1,0 +1,23 @@
+iching/iching_agent.py
+  s_56dba05e8ae400::t_92c3ae26813f90 101-121,123-124,129
+llm/prompts.py
+  s_56dba05e8ae400::t_c7a063f7d183c1 274-275,278-280,286-288,290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "094ceaa73934332c64c5b93e758ae88af33047e3",
+  "prompts": {},
+  "sessions": {
+    "s_56dba05e8ae400": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a350dc75-285b-4953-99e9-be1d3b854571",
+        "model": "unknown"
+      },
+      "human_author": "hyx <hyx@stock-analysis.local>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
