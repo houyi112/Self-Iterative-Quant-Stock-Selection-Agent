@@ -1,0 +1,27 @@
+data/build_dataset.py
+  s_56dba05e8ae400::t_abb92821f78c6e 1-411
+data/training_log.py
+  s_56dba05e8ae400::t_0d79c795a7eae7 1-294
+data/fetcher.py
+  s_56dba05e8ae400::t_19f72ee0ff14a0 8,159,163-206
+main.py
+  s_56dba05e8ae400::t_07b1c8ba2c444c 27,39,236-240,256-258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1c3e4804bf0905bc251cd70ef6d1d8a57768f561",
+  "prompts": {},
+  "sessions": {
+    "s_56dba05e8ae400": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a350dc75-285b-4953-99e9-be1d3b854571",
+        "model": "unknown"
+      },
+      "human_author": "hyx <hyx@stock-analysis.local>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
