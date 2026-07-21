@@ -5,7 +5,7 @@ import re
 import time
 import urllib.request
 import urllib.error
-from config import SINA_API_BASE
+from config import SINA_API_BASE, CACHE_DIR
 from data.store import load, merge_incremental, last_date
 
 
@@ -156,7 +156,51 @@ def batch_update(symbols: list[str], max_workers: int = 6) -> dict[str, list[dic
                 result[sym] = future.result()
             except Exception as e:
                 print(f"  [fetcher] {sym} 拉取失败: {e}")
-                result[sym] = []
+                result[sym] = load(sym)  # 保留缓存数据，不丢
 
     # 保持原始顺序输出
     return {sym: result.get(sym, []) for sym in symbols}
+
+
+def refresh_stale(max_age_days: int = 2, max_workers: int = 6) -> int:
+    """后台追更：拉取所有超过 N 天未更新的股票数据。
+
+    Args:
+        max_age_days: 缓存超过此天数则强制刷新
+        max_workers: 并行数
+
+    Returns:
+        追更的股票数
+    """
+    from datetime import date, timedelta
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    cutoff = str(date.today() - timedelta(days=max_age_days))
+    stale_codes = []
+
+    for f in sorted(CACHE_DIR.glob("*.json")):
+        code = f.stem
+        cached = load(code)
+        if not cached:
+            stale_codes.append(code)
+            continue
+        last = cached[-1].get("date", "0000-00-00")
+        if last < cutoff:
+            stale_codes.append(code)
+
+    if not stale_codes:
+        return 0
+
+    print(f"  [fetcher] 后台追更 {len(stale_codes)} 只过期股票（>{max_age_days}天）...")
+    updated = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(incremental_update, c): c for c in stale_codes}
+        for future in as_completed(futures):
+            try:
+                future.result()
+                updated += 1
+            except Exception:
+                pass
+
+    print(f"  [fetcher] 追更完成: {updated}/{len(stale_codes)}")
+    return updated

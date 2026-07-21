@@ -24,7 +24,7 @@ from config import (
     TRACKED_INDICES, SECTOR_STOCKS, ALL_STOCK_CODES,
     ENABLE_ICHING, STATE_DIR, SECTOR_ELEMENT,
 )
-from data.fetcher import batch_update
+from data.fetcher import batch_update, refresh_stale
 from data.store import load as load_cache
 from data.indicators import daily_return
 from engine.risk_scorer import score_all_sectors
@@ -36,6 +36,7 @@ from reports.writer import write_report1, write_report2, write_report3, write_re
 from data.backtest import (
     load_yesterdays_prediction, append_daily, load_log, load_insights,
 )
+from data.training_log import record_sector_samples, record_stock_samples, backfill_labels, stats as training_stats
 
 
 def is_trading_day(d: date) -> bool:
@@ -232,6 +233,11 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
     report1_path = write_report1(date_str, report1)
     print(f"  ✓ 报告一 → {report1_path}")
 
+    # 训练数据：记录今日板块特征（标签次日回填）
+    n_sec = record_sector_samples(date_str, report1.get("rankings", []), {})
+    if n_sec:
+        print(f"  ✓ 训练数据 → {n_sec} 条板块样本（待标注）")
+
     if ganzhi_result:
         ganzhi_path = write_ganzhi(date_str, ganzhi_result)
         print(f"  ✓ 干支分析 → {ganzhi_path}")
@@ -247,17 +253,9 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
     leading_sectors = [s["name"] for s in report1.get("rankings", [])[:6]]
     print(f"  ↳ 领涨板块: {', '.join(leading_sectors)}")
 
-    # 只拉取领涨板块对应的股票（而非全量 184 只）
-    from config import SECTOR_STOCKS, INDEX_TO_SECTOR
-    stock_codes_to_fetch: list[str] = []
-    for sec_name in leading_sectors:
-        pool_name = INDEX_TO_SECTOR.get(sec_name, sec_name)
-        codes = SECTOR_STOCKS.get(pool_name, [])
-        stock_codes_to_fetch.extend(codes)
-    # 去重
-    stock_codes_to_fetch = sorted(set(stock_codes_to_fetch))
-    print(f"  ↳ 拉取 {len(stock_codes_to_fetch)} 只候选股...")
-    stock_data = batch_update(stock_codes_to_fetch)
+    # 全量拉取所有股票数据（每次运行都更新到最新）
+    print(f"  ↳ 拉取全量 {len(ALL_STOCK_CODES)} 只股票...")
+    stock_data = batch_update(ALL_STOCK_CODES)
 
     report2 = generate_report2(leading_sectors, stock_data, llm_enabled, analyzer=analyzer)
     report2_path = write_report2(date_str, report2)
