@@ -392,16 +392,12 @@ def main():
             print(f"[warning] {run_date} 不是交易日，继续执行...")
         llm_enabled = not args.no_llm
 
-        # 保护正式报告不被测试覆盖
+        # 无 --force 时输出到测试目录，保护正式报告
         output_suffix = ""
-        date_str = str(run_date)
-        existing = OUTPUT_DIR / date_str / "report1_领涨预判.md"
-        if existing.exists() and not args.force:
-            seq = 2
-            while (OUTPUT_DIR / f"{date_str}-{seq:02d}").exists():
-                seq += 1
-            output_suffix = f"-{seq:02d}"
-            print(f"[info] 当天已有正式报告，输出到 output/{date_str}{output_suffix}/")
+        if not args.force:
+            from reports.writer import set_test_mode
+            set_test_mode(True)
+            print(f"[info] 测试模式，输出到 output/test/")
 
         if args.report:
             _run_single_report(args.report, run_date, llm_enabled)

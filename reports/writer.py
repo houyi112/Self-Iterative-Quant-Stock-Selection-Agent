@@ -5,8 +5,17 @@ from pathlib import Path
 from config import OUTPUT_DIR
 
 
+_test_mode = False
+
+
+def set_test_mode(on: bool = True) -> None:
+    global _test_mode
+    _test_mode = on
+
+
 def _ensure_dir(date_str: str) -> Path:
-    d = OUTPUT_DIR / date_str
+    base = OUTPUT_DIR / "test" if _test_mode else OUTPUT_DIR
+    d = base / date_str
     d.mkdir(parents=True, exist_ok=True)
     return d
 
