@@ -1,0 +1,25 @@
+.gitignore
+  s_56dba05e8ae400::t_e940178ea1b90a 27
+main.py
+  s_56dba05e8ae400::t_99fdf7d8ccdf7f 395,397-400
+reports/writer.py
+  s_56dba05e8ae400::t_55fcd1c9f169f3 8-15,17-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0b2563b381d783de2495a5f853515944e392798c",
+  "prompts": {},
+  "sessions": {
+    "s_56dba05e8ae400": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a350dc75-285b-4953-99e9-be1d3b854571",
+        "model": "unknown"
+      },
+      "human_author": "hyx <hyx@stock-analysis.local>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
