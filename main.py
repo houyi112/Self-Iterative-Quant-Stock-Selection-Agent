@@ -259,6 +259,15 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True,
     print(f"  ↳ 拉取全量 {len(ALL_STOCK_CODES)} 只股票...")
     stock_data = batch_update(ALL_STOCK_CODES)
 
+    # 检查：多少只股票没更新到今天
+    stale_count = 0
+    for code in ALL_STOCK_CODES:
+        data = stock_data.get(code, [])
+        if not data or data[-1]["date"] < date_str:
+            stale_count += 1
+    if stale_count > 0:
+        print(f"  ⚠️  {stale_count}/{len(ALL_STOCK_CODES)} 只股票数据未更新到最新")
+
     report2 = generate_report2(leading_sectors, stock_data, llm_enabled, analyzer=analyzer)
     report2_path = write_report2(date_str, report2)
     n_picks = len(report2.get("picks", []))
