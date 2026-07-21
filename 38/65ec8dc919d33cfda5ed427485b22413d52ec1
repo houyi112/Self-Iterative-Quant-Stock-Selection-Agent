@@ -1,0 +1,33 @@
+engine/analyzer.py
+  s_56dba05e8ae400::t_fb8c005e402725 1-177
+iching/iching_agent.py
+  s_56dba05e8ae400::t_1a7598b3d632b5 75,80-81,84,89-92,94
+main.py
+  s_56dba05e8ae400::t_87b640cba5bb53 90,99-102,105,204,208,217,226,262,271,310
+reports/report1_sectors.py
+  s_56dba05e8ae400::t_4523ba7963f9f7 24,28,33-35,83-86,88
+reports/report2_picks.py
+  s_56dba05e8ae400::t_b41edbe8cc73af 20,53-57,59
+reports/report3_short.py
+  s_56dba05e8ae400::t_be62eba97623e0 13-35,39,74-77,79
+reports/report4_review.py
+  s_56dba05e8ae400::t_94c91d859d27e2 210,229-232,236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3865ec8dc919d33cfda5ed427485b22413d52ec1",
+  "prompts": {},
+  "sessions": {
+    "s_56dba05e8ae400": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a350dc75-285b-4953-99e9-be1d3b854571",
+        "model": "unknown"
+      },
+      "human_author": "hyx <hyx@stock-analysis.local>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
