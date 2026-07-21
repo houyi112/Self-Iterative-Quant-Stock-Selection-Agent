@@ -72,24 +72,26 @@ def _empty_iching_fields() -> dict:
 # 天干地支（主力 —— LLM 直接推算干支 + 五行分析）
 # ============================================================
 
-def generate_ganzhi_report(d: date = None, llm_enabled: bool = True) -> dict:
+def generate_ganzhi_report(d: date = None, llm_enabled: bool = True, analyzer=None) -> dict:
     """生成干支分析报告。
-
-    不做任何本地计算 —— 直接把公历日期交给 LLM，
-    LLM 自行推算干支纪年，分析体用生克，输出板块吉凶。
 
     Args:
         d: 日期，默认今天
-        llm_enabled: 是否启用 LLM
+        llm_enabled: 是否启用分析
+        analyzer: BaseAnalyzer 实例
 
     Returns:
-        结构化报告数据（与梅花易数同构，兼容 _compare_iching）
+        结构化报告数据
     """
     if d is None:
         d = date.today()
 
+    if analyzer is None:
+        from engine.analyzer import get_analyzer
+        analyzer = get_analyzer()
+
     if llm_enabled:
-        result = _get_llm_ganzhi(d)
+        result = analyzer.analyze_ganzhi(d)
     else:
         result = _empty_ganzhi_fields()
 

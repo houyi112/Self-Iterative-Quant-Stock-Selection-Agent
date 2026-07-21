@@ -21,17 +21,18 @@ def generate_report1(
     market_context: dict | None = None,
     llm_enabled: bool = True,
     precomputed_indicators: dict | None = None,
+    analyzer=None,
 ) -> dict:
     """生成报告一。
 
-    核心思路：把所有板块的全量指标 + 风险评分直接交给 LLM，
-    LLM 自行排序并给出领涨概率和驱动逻辑，不做硬编码打分。
+    核心思路：把所有板块的全量指标 + 风险评分直接交给分析器。
 
     Args:
         sector_data: {sector_name: ohlcv_list} 所有指数数据（含市场和板块）
         market_context: 市场上下文
-        llm_enabled: 是否启用 LLM
-        precomputed_indicators: {name: DataFrame} 预计算的指标（避免重复 compute_all）
+        llm_enabled: 是否启用 LLM（兼容旧参数，实际由 analyzer 决定）
+        precomputed_indicators: {name: DataFrame} 预计算的指标
+        analyzer: BaseAnalyzer 实例，默认自动获取
 
     Returns:
         结构化报告数据
@@ -79,8 +80,12 @@ def generate_report1(
         })
 
     # --- 4. LLM：分析全部板块，自行排序 + 叙事 ---
+    if analyzer is None:
+        from engine.analyzer import get_analyzer
+        analyzer = get_analyzer()
+
     if llm_enabled:
-        llm_result = _get_llm_analysis(sectors, sector_data)
+        llm_result = analyzer.rank_sectors(sectors, sector_data)
         rankings = llm_result.get("rankings", [])
         market_narrative = llm_result.get("market_narrative", "")
 

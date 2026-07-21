@@ -87,7 +87,7 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
 
     Args:
         run_date: 运行日期，默认今天
-        llm_enabled: 是否启用 LLM
+        llm_enabled: 是否启用分析器（LLM 或未来 XGBoost/微调模型）
 
     Returns:
         执行摘要
@@ -96,9 +96,13 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
         run_date = date.today()
     date_str = str(run_date)
 
+    # 分析器：统一决策入口（LLM / Noop / XGBoost / FineTuned）
+    from engine.analyzer import get_analyzer
+    analyzer = get_analyzer("noop" if not llm_enabled else None)
+
     print(f"\n{'='*60}")
     print(f"  Stock Agent Pipeline — {date_str}")
-    print(f"  LLM: {'启用' if llm_enabled else '关闭'}")
+    print(f"  Analyzer: {type(analyzer).__name__}")
     print(f"  干支: {'启用' if (llm_enabled and ENABLE_ICHING) else '关闭'}")
     print(f"{'='*60}\n")
 
@@ -197,11 +201,11 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
     if llm_enabled and ENABLE_ICHING:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=2) as executor:
-            future_r1 = executor.submit(generate_report1, index_data, market_context, llm_enabled, precomputed_indicators)
+            future_r1 = executor.submit(generate_report1, index_data, market_context, llm_enabled, precomputed_indicators, analyzer)
             next_td = next_trading_day(run_date)
             future_ganzhi = executor.submit(
                 __import__("iching.iching_agent", fromlist=["generate_ganzhi_report"]).generate_ganzhi_report,
-                next_td, llm_enabled,
+                next_td, llm_enabled, analyzer,
             )
             try:
                 report1 = future_r1.result()
@@ -210,7 +214,7 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
                 import traceback
                 traceback.print_exc()
                 # 报告一是核心，失败则降级为纯涨幅排序
-                report1 = generate_report1(index_data, market_context, llm_enabled=False, precomputed_indicators=precomputed_indicators)
+                report1 = generate_report1(index_data, market_context, False, precomputed_indicators, analyzer)
             try:
                 ganzhi_result = future_ganzhi.result()
             except Exception as e:
@@ -219,7 +223,7 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
         print("  ↳ 报告一 + 干支分析 并行完成")
     else:
         report1 = generate_report1(index_data, market_context, llm_enabled,
-                                  precomputed_indicators=precomputed_indicators)
+                                  precomputed_indicators=precomputed_indicators, analyzer=analyzer)
 
     # 量化+干支共振对比
     if ganzhi_result:
@@ -255,7 +259,7 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
     print(f"  ↳ 拉取 {len(stock_codes_to_fetch)} 只候选股...")
     stock_data = batch_update(stock_codes_to_fetch)
 
-    report2 = generate_report2(leading_sectors, stock_data, llm_enabled)
+    report2 = generate_report2(leading_sectors, stock_data, llm_enabled, analyzer=analyzer)
     report2_path = write_report2(date_str, report2)
     n_picks = len(report2.get("picks", []))
     print(f"  ✓ 报告二 → {report2_path} ({n_picks} 只候选)\n")
@@ -264,7 +268,7 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
     # Step 5: 报告三
     # ============================================
     print("[5/6] 生成报告三（做空审查）...")
-    report3 = generate_report3(report2.get("picks", []), llm_enabled)
+    report3 = generate_report3(report2.get("picks", []), llm_enabled, analyzer=analyzer)
     report3_path = write_report3(date_str, report3)
 
     n_removes = sum(1 for s in report3.get("stocks", []) if s.get("remove_recommendation"))
@@ -303,7 +307,7 @@ def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
     todays_pred = {"rankings": clean_rankings}
     report4 = generate_report4(
         yesterdays_pred, todays_actual, llm_enabled, yesterdays_ganzhi,
-        todays_prediction=todays_pred,
+        todays_prediction=todays_pred, analyzer=analyzer,
     )
     report4_path = write_report4(date_str, report4)
     n_insights = len(report4.get("new_insights", []))

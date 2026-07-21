@@ -10,9 +10,33 @@ from llm.prompts import REPORT3_SYSTEM, REPORT3_USER_TEMPLATE
 from data.indicators import format_summary_for_llm
 
 
+def _get_llm_audit(picks: list[dict]) -> dict:
+    """LLM 做空审查（独立函数，供 LLMAnalyzer 调用）。"""
+    from llm.client import chat_json
+    from llm.prompts import REPORT3_SYSTEM, REPORT3_USER_TEMPLATE
+    from data.indicators import format_summary_for_llm
+
+    stock_list_lines = []
+    for p in picks:
+        parts = [
+            f"- {p.get('name', p['code'])}（{p['code']}）",
+            f"现价: ¥{p['close']:.2f}",
+            f"涨停价: ¥{p['limit_up_price']:.2f}",
+            f"市值: {p['market_cap']}亿",
+            f"{'20cm' if p.get('is_20cm') else '10cm'}",
+            format_summary_for_llm(p.get("summary", {})),
+            f"日涨跌: {p['daily_return']:+.2f}% 连涨: {p['consecutive_up']}日",
+        ]
+        stock_list_lines.append(" | ".join(parts))
+
+    prompt = REPORT3_USER_TEMPLATE.format(stock_list="\n".join(stock_list_lines))
+    return chat_json(REPORT3_SYSTEM, prompt)
+
+
 def generate_report3(
     picks: list[dict],
     llm_enabled: bool = True,
+    analyzer=None,
 ) -> dict:
     """生成报告三。
 
@@ -47,11 +71,12 @@ def generate_report3(
 
     result = {"stocks": [], "systemic_risk": ""}
 
+    if analyzer is None:
+        from engine.analyzer import get_analyzer
+        analyzer = get_analyzer()
+
     if llm_enabled:
-        prompt = REPORT3_USER_TEMPLATE.format(
-            stock_list="\n".join(stock_list_lines),
-        )
-        llm_result = chat_json(REPORT3_SYSTEM, prompt)
+        llm_result = analyzer.audit_shorts(picks)
         result["stocks"] = llm_result.get("stocks", [])
         result["systemic_risk"] = llm_result.get("systemic_risk", "")
     else:

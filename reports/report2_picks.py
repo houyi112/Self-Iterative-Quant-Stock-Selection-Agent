@@ -17,6 +17,7 @@ def generate_report2(
     leading_sectors: list[str],
     ohlcv_cache: dict[str, list[dict]],
     llm_enabled: bool = True,
+    analyzer=None,
 ) -> dict:
     """生成报告二。
 
@@ -49,9 +50,13 @@ def generate_report2(
             seen.add(c["code"])
             unique.append(c)
 
-    # --- LLM：全量候选股分析，自行决定哪些推荐 ---
+    # --- 分析器：全量候选股分析，自行决定哪些推荐 ---
+    if analyzer is None:
+        from engine.analyzer import get_analyzer
+        analyzer = get_analyzer()
+
     if llm_enabled and unique:
-        picks = _get_llm_picks(top_sectors, unique)
+        picks = analyzer.pick_stocks(top_sectors, unique)
         if not picks:
             print("  ⚠️ LLM 未选出任何涨停候选（可能是 LLM 故障或全部否决）")
     else:

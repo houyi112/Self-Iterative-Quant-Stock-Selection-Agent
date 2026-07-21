@@ -9,8 +9,6 @@ import json
 from datetime import datetime
 from config import STATE_DIR, SECTOR_ELEMENT
 from data.backtest import load_log, load_insights, append_insights
-from llm.client import chat_json
-from llm.prompts import REPORT4_SYSTEM, REPORT4_USER_TEMPLATE
 
 
 # ---------- 偏差计算（硬编码） ----------
@@ -209,6 +207,7 @@ def generate_report4(
     llm_enabled: bool = True,
     yesterdays_ganzhi: dict | None = None,
     todays_prediction: dict | None = None,
+    analyzer=None,
 ) -> dict:
     """生成报告四：硬编码偏差 + 累计统计 + LLM 增量洞察。
 
@@ -227,17 +226,19 @@ def generate_report4(
     stats = log_data.get("stats", {})
 
     # --- 3. LLM 增量洞察 ---
+    if analyzer is None:
+        from engine.analyzer import get_analyzer
+        analyzer = get_analyzer()
+
     new_insights: list[dict] = []
     if llm_enabled and yesterdays_prediction is not None:
         recent_insights = load_insights(limit=10)
-        prompt = REPORT4_USER_TEMPLATE.format(
+        raw_insights = analyzer.generate_insights(
             cumulative_stats=_format_stats_for_llm(stats),
             todays_deviation=json.dumps(deviation, ensure_ascii=False, indent=2),
             ganzhi_deviation=json.dumps(ganzhi_deviation, ensure_ascii=False, indent=2) if ganzhi_deviation else "（无）",
             recent_insights=json.dumps(recent_insights, ensure_ascii=False, indent=2) if recent_insights else "（尚无历史洞察）",
         )
-        result = chat_json(REPORT4_SYSTEM, prompt, temperature=0.3)
-        raw_insights = result.get("insights", [])
         for ins in raw_insights:
             ins.setdefault("date", datetime.now().strftime("%Y-%m-%d"))
             ins.setdefault("confidence", 0.5)
