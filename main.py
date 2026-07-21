@@ -22,7 +22,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from config import (
     TRACKED_INDICES, SECTOR_STOCKS, ALL_STOCK_CODES,
-    ENABLE_ICHING, STATE_DIR, SECTOR_ELEMENT,
+    ENABLE_ICHING, STATE_DIR, SECTOR_ELEMENT, OUTPUT_DIR,
 )
 from data.fetcher import batch_update, refresh_stale
 from data.store import load as load_cache
@@ -83,19 +83,21 @@ def _load_yesterdays_ganzhi(run_date: date) -> dict | None:
     return None
 
 
-def run_pipeline(run_date: date = None, llm_enabled: bool = True) -> dict:
+def run_pipeline(run_date: date = None, llm_enabled: bool = True,
+                 output_suffix: str = "") -> dict:
     """执行完整选股管线。
 
     Args:
         run_date: 运行日期，默认今天
-        llm_enabled: 是否启用分析器（LLM 或未来 XGBoost/微调模型）
+        llm_enabled: 是否启用分析器
+        output_suffix: 输出目录后缀（如 "-02"），空字符串表示直接覆盖
 
     Returns:
         执行摘要
     """
     if run_date is None:
         run_date = date.today()
-    date_str = str(run_date)
+    date_str = str(run_date) + output_suffix
 
     # 分析器：统一决策入口（LLM / Noop / XGBoost / FineTuned）
     from engine.analyzer import get_analyzer
@@ -378,6 +380,7 @@ def main():
     parser.add_argument("--date", type=str, default=None, help="指定日期 YYYY-MM-DD")
     parser.add_argument("--no-llm", action="store_true", help="禁用 LLM（纯硬编码模式）")
     parser.add_argument("--report", type=int, choices=[1, 2, 3, 4], default=None, help="只执行指定报告")
+    parser.add_argument("--force", action="store_true", help="强制覆盖当天已有报告")
     args = parser.parse_args()
 
     run_date = date.today()
@@ -385,15 +388,25 @@ def main():
         run_date = date.fromisoformat(args.date)
 
     if args.once:
-        # 单次执行
         if not is_trading_day(run_date):
             print(f"[warning] {run_date} 不是交易日，继续执行...")
         llm_enabled = not args.no_llm
 
+        # 保护正式报告不被测试覆盖
+        output_suffix = ""
+        date_str = str(run_date)
+        existing = OUTPUT_DIR / date_str / "report1_领涨预判.md"
+        if existing.exists() and not args.force:
+            seq = 2
+            while (OUTPUT_DIR / f"{date_str}-{seq:02d}").exists():
+                seq += 1
+            output_suffix = f"-{seq:02d}"
+            print(f"[info] 当天已有正式报告，输出到 output/{date_str}{output_suffix}/")
+
         if args.report:
             _run_single_report(args.report, run_date, llm_enabled)
         else:
-            run_pipeline(run_date, llm_enabled)
+            run_pipeline(run_date, llm_enabled, output_suffix=output_suffix)
     else:
         # 调度模式
         from apscheduler.schedulers.background import BackgroundScheduler
